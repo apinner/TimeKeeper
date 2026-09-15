@@ -10,7 +10,7 @@ interface Person {
 
 const who = (person: Person) => person.name ?? person.upn;
 
-export function leaveSubmitted(params: {
+export async function leaveSubmitted(params: {
   approver: Person;
   requester: Person;
   typeName: string;
@@ -19,7 +19,7 @@ export function leaveSubmitted(params: {
   totalMinutes: number;
   onBehalfOf: string | null;
   overdraftMinutes: number;
-}): Mail {
+}): Promise<Mail> {
   const lines = [
     `${who(params.requester)} has requested ${params.typeName.toLowerCase()}.`,
     "",
@@ -39,7 +39,7 @@ export function leaveSubmitted(params: {
     lines.push("", `You are receiving this as cover for ${params.onBehalfOf}.`);
   }
 
-  lines.push("", `Review it here: ${appUrl("/approvals")}`);
+  lines.push("", `Review it here: ${await appUrl("/approvals")}`);
 
   return {
     to: params.approver.email,
@@ -48,7 +48,7 @@ export function leaveSubmitted(params: {
   };
 }
 
-export function leaveDecided(params: {
+export async function leaveDecided(params: {
   requester: Person;
   decider: Person;
   approved: boolean;
@@ -58,7 +58,7 @@ export function leaveDecided(params: {
   totalMinutes: number;
   comment: string | null;
   onBehalfOf: string | null;
-}): Mail {
+}): Promise<Mail> {
   const verdict = params.approved ? "approved" : "not approved";
   const lines = [
     `Your ${params.typeName.toLowerCase()} request has been ${verdict}.`,
@@ -69,7 +69,7 @@ export function leaveDecided(params: {
   ];
 
   if (params.comment) lines.push("", `Comment: ${params.comment}`);
-  lines.push("", `View your leave: ${appUrl("/leave")}`);
+  lines.push("", `View your leave: ${await appUrl("/leave")}`);
 
   return {
     to: params.requester.email,
@@ -78,14 +78,14 @@ export function leaveDecided(params: {
   };
 }
 
-export function leaveCancelled(params: {
+export async function leaveCancelled(params: {
   approver: Person;
   requester: Person;
   typeName: string;
   start: PlainDate;
   end: PlainDate;
   totalMinutes: number;
-}): Mail {
+}): Promise<Mail> {
   return {
     to: params.approver.email,
     subject: `Leave cancelled by ${who(params.requester)}`,
@@ -95,19 +95,19 @@ export function leaveCancelled(params: {
       `Dates:  ${formatLongDate(params.start)} to ${formatLongDate(params.end)}`,
       `Total:  ${formatHours(params.totalMinutes)} hours returned to their balance`,
       "",
-      `Team calendar: ${appUrl("/team")}`,
+      `Team calendar: ${await appUrl("/team")}`,
     ].join("\n"),
   };
 }
 
-export function timesheetSubmitted(params: {
+export async function timesheetSubmitted(params: {
   approver: Person;
   owner: Person;
   weekStart: PlainDate;
   accountedMinutes: number;
   contractedMinutes: number;
   varianceReason: string | null;
-}): Mail {
+}): Promise<Mail> {
   const lines = [
     `${who(params.owner)} has submitted their timesheet for the week commencing ${formatDate(params.weekStart)}.`,
     "",
@@ -116,7 +116,7 @@ export function timesheetSubmitted(params: {
   ];
 
   if (params.varianceReason) lines.push("", `Reason given: ${params.varianceReason}`);
-  lines.push("", `Review it here: ${appUrl("/approvals")}`);
+  lines.push("", `Review it here: ${await appUrl("/approvals")}`);
 
   return {
     to: params.approver.email,
@@ -125,13 +125,13 @@ export function timesheetSubmitted(params: {
   };
 }
 
-export function timesheetDecided(params: {
+export async function timesheetDecided(params: {
   owner: Person;
   decider: Person;
   approved: boolean;
   weekStart: PlainDate;
   comment: string | null;
-}): Mail {
+}): Promise<Mail> {
   const verdict = params.approved ? "approved" : "sent back";
   const lines = [
     `Your timesheet for the week commencing ${formatDate(params.weekStart)} has been ${verdict}.`,
@@ -142,7 +142,7 @@ export function timesheetDecided(params: {
   if (!params.approved) {
     lines.push("", "The week has been reopened so you can correct and resubmit it.");
   }
-  lines.push("", appUrl("/timesheets"));
+  lines.push("", await appUrl("/timesheets"));
 
   return {
     to: params.owner.email,
@@ -151,12 +151,12 @@ export function timesheetDecided(params: {
   };
 }
 
-export function delegationAssigned(params: {
+export async function delegationAssigned(params: {
   delegate: Person;
   manager: Person;
   start: PlainDate;
   end: PlainDate;
-}): Mail {
+}): Promise<Mail> {
   return {
     to: params.delegate.email,
     subject: `You are covering approvals for ${who(params.manager)}`,
@@ -169,28 +169,28 @@ export function delegationAssigned(params: {
       "Their team's leave requests and timesheets will appear in your approvals",
       "queue for that period, and your decisions are recorded as made on their behalf.",
       "",
-      appUrl("/approvals"),
+      await appUrl("/approvals"),
     ].join("\n"),
   };
 }
 
-export function timesheetReminder(params: { owner: Person; weekStart: PlainDate }): Mail {
+export async function timesheetReminder(params: { owner: Person; weekStart: PlainDate }): Promise<Mail> {
   return {
     to: params.owner.email,
     subject: `Timesheet not submitted — w/c ${formatDate(params.weekStart)}`,
     text: [
       `Your timesheet for the week commencing ${formatDate(params.weekStart)} has not been submitted.`,
       "",
-      `Fill it in here: ${appUrl("/timesheets")}`,
+      `Fill it in here: ${await appUrl("/timesheets")}`,
     ].join("\n"),
   };
 }
 
-export function managerDigest(params: {
+export async function managerDigest(params: {
   approver: Person;
   pendingLeave: number;
   pendingTimesheets: number;
-}): Mail {
+}): Promise<Mail> {
   const parts: string[] = [];
   if (params.pendingLeave > 0) {
     parts.push(
@@ -209,7 +209,7 @@ export function managerDigest(params: {
     text: [
       `You have ${parts.join(" and ")} waiting for a decision.`,
       "",
-      appUrl("/approvals"),
+      await appUrl("/approvals"),
     ].join("\n"),
   };
 }

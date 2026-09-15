@@ -1,4 +1,7 @@
+import { decryptSecret } from "@/lib/crypto";
+import { getSettings } from "@/lib/settings";
 import { AD_PERSON_FILTER } from "./attributes";
+import type { Settings } from "@prisma/client";
 
 export interface LdapConfig {
   url: string;
@@ -25,33 +28,42 @@ export interface LdapConfig {
   timeoutMs: number;
 }
 
-export function ldapConfig(): LdapConfig | null {
-  const url = process.env.LDAP_URL?.trim();
-  const baseDn = process.env.LDAP_BASE_DN?.trim();
+/**
+ * Directory settings live in the database and are edited in Admin →
+ * Authentication, so the directory can be configured from inside the
+ * application rather than by editing a file and redeploying.
+ */
+export function ldapConfigFrom(settings: Settings): LdapConfig | null {
+  if (!settings.ldapEnabled) return null;
+
+  const url = settings.ldapUrl?.trim();
+  const baseDn = settings.ldapBaseDn?.trim();
   if (!url || !baseDn) return null;
 
   return {
     url,
     baseDn,
-    upnSuffix: process.env.LDAP_UPN_SUFFIX?.trim() || null,
-    accessGroupDn: process.env.LDAP_ACCESS_GROUP_DN?.trim() || null,
-    bindDn: process.env.LDAP_BIND_DN?.trim() || null,
-    bindPassword: process.env.LDAP_BIND_PASSWORD || null,
-    startTls: process.env.LDAP_STARTTLS === "true",
-    rejectUnauthorized: process.env.LDAP_TLS_REJECT_UNAUTHORIZED !== "false",
-    nestedGroups: process.env.LDAP_NESTED_GROUPS !== "false",
-    personFilter: process.env.LDAP_PERSON_FILTER?.trim() || AD_PERSON_FILTER,
-    bindMode: process.env.LDAP_BIND_MODE === "search" ? "search" : "upn",
-    timeoutMs: Number(process.env.LDAP_TIMEOUT_MS ?? 10_000),
+    upnSuffix: settings.ldapUpnSuffix?.trim() || null,
+    accessGroupDn: settings.ldapAccessGroupDn?.trim() || null,
+    bindDn: settings.ldapBindDn?.trim() || null,
+    bindPassword: decryptSecret(settings.ldapBindPasswordEnc),
+    startTls: settings.ldapStartTls,
+    rejectUnauthorized: settings.ldapTlsRejectUnauthorized,
+    nestedGroups: settings.ldapNestedGroups,
+    personFilter: settings.ldapPersonFilter?.trim() || AD_PERSON_FILTER,
+    bindMode: settings.ldapBindMode === "search" ? "search" : "upn",
+    timeoutMs: settings.ldapTimeoutMs,
   };
 }
 
-export function requireLdapConfig(): LdapConfig {
-  const config = ldapConfig();
+export async function getLdapConfig(): Promise<LdapConfig | null> {
+  return ldapConfigFrom(await getSettings());
+}
+
+export async function requireLdapConfig(): Promise<LdapConfig> {
+  const config = await getLdapConfig();
   if (!config) {
-    throw new Error(
-      "LDAP is not configured: set LDAP_URL and LDAP_BASE_DN. See docs/SETUP.md.",
-    );
+    throw new Error("Directory sign-in is not configured. See Admin → Authentication.");
   }
   return config;
 }

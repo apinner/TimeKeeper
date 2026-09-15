@@ -51,6 +51,13 @@ model User {
   department     String?
   role           Role      @default(EMPLOYEE)
   isActive       Boolean   @default(true)
+
+  // Local password, for administrators only. Exists so the system can be
+  // configured and repaired without the directory being reachable.
+  passwordHash     String?
+  passwordSetAt    DateTime?
+  failedSignIns    Int       @default(0)
+  lockedUntil      DateTime?
   startDate      DateTime? @db.Date
   endDate        DateTime? @db.Date
 
@@ -325,6 +332,43 @@ model Settings {
   carryoverExpiryMonth   Int      @default(3)
   timesheetRemindersOn   Boolean  @default(true)
   managerDigestOn        Boolean  @default(true)
+
+  // --- Directory (LDAP) --------------------------------------------------
+  // Configured in Admin -> Authentication rather than the environment, so the
+  // directory can be set up from inside the app.
+  ldapEnabled              Boolean @default(false)
+  ldapUrl                  String?
+  ldapBaseDn               String?
+  ldapUpnSuffix            String?
+  ldapAccessGroupDn        String?
+  ldapBindDn               String?
+  // AES-256-GCM, keyed from AUTH_SECRET. Never returned to the browser.
+  ldapBindPasswordEnc      String?
+  ldapStartTls             Boolean @default(false)
+  ldapTlsRejectUnauthorized Boolean @default(true)
+  ldapNestedGroups         Boolean @default(true)
+  ldapPersonFilter         String  @default("(objectCategory=person)")
+  ldapBindMode             String  @default("upn")
+  ldapTimeoutMs            Int     @default(10000)
+
+  // --- Email -------------------------------------------------------------
+  smtpHost        String?
+  smtpPort        Int      @default(587)
+  smtpSecure      Boolean  @default(false)
+  smtpUser        String?
+  smtpPasswordEnc String?
+  smtpFrom        String   @default("TimeKeeper <timekeeper@example.com>")
+  appUrl          String?
+
+  // --- Scheduled jobs (local time) ---------------------------------------
+  reminderDayOfWeek Int @default(5)
+  reminderHour      Int @default(16)
+  digestDayOfWeek   Int @default(1)
+  digestHour        Int @default(9)
+  directorySyncHour Int @default(2)
+  rolloverHour      Int @default(1)
+
+  sessionHours Int @default(12)
 
   updatedAt DateTime @updatedAt
 }

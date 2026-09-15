@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { bootstrapRoleFor, ensureUserSetUp } from "@/lib/provisioning";
+import { ensureUserSetUp } from "@/lib/provisioning";
 import type { DirectoryProfile } from "./attributes";
 import { profileByDn } from "./directory";
 import type { User } from "@prisma/client";
@@ -31,9 +31,9 @@ export async function upsertFromDirectory(profile: DirectoryProfile): Promise<Us
 
   const user = existing
     ? await prisma.user.update({ where: { id: existing.id }, data: attributes })
-    : await prisma.user.create({
-        data: { ...attributes, role: bootstrapRoleFor(profile.upn) ?? "EMPLOYEE" },
-      });
+    // Everyone arrives as an employee. The first administrator is created by
+    // the setup page; every role after that is granted in Admin → People.
+    : await prisma.user.create({ data: { ...attributes, role: "EMPLOYEE" } });
 
   if (!existing) await ensureUserSetUp(user.id);
 

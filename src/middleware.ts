@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * requireUser / requireAdmin — this is only here to avoid a flash of a loading
  * page for signed-out visitors.
  */
-const PUBLIC_PATHS = ["/signin", "/api/auth"];
+const PUBLIC_PATHS = ["/signin", "/setup", "/api/auth"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

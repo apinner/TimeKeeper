@@ -6,6 +6,15 @@ import { getSettings } from "@/lib/settings";
 import { requireAdmin } from "@/lib/session";
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+const WEEKDAYS = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
 export default async function SettingsPage() {
   const user = await requireAdmin();
@@ -165,28 +174,145 @@ export default async function SettingsPage() {
 
         <section className="card">
           <div className="card-header">
-            <h2 className="font-semibold">Email reminders</h2>
+            <h2 className="font-semibold">Scheduled jobs</h2>
+            <span className="text-sm text-[var(--color-muted)]">Times are local</span>
           </div>
-          <div className="card-body space-y-2">
+          <div className="card-body space-y-3">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 name="timesheetRemindersOn"
                 defaultChecked={settings.timesheetRemindersOn}
               />
-              Friday reminder to anyone whose week is not submitted
+              Remind anyone whose week is not submitted
             </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="reminderDayOfWeek">
+                  Reminder day
+                </label>
+                <select
+                  id="reminderDayOfWeek"
+                  name="reminderDayOfWeek"
+                  className="select"
+                  defaultValue={settings.reminderDayOfWeek}
+                >
+                  {WEEKDAYS.map((day, index) => (
+                    <option key={day} value={index}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label" htmlFor="reminderHour">
+                  Reminder hour
+                </label>
+                <input
+                  id="reminderHour"
+                  name="reminderHour"
+                  type="number"
+                  min="0"
+                  max="23"
+                  className="input"
+                  defaultValue={settings.reminderHour}
+                />
+              </div>
+            </div>
+
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
                 name="managerDigestOn"
                 defaultChecked={settings.managerDigestOn}
               />
-              Monday digest to approvers with items waiting
+              Send approvers a digest of what is waiting
             </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label" htmlFor="digestDayOfWeek">
+                  Digest day
+                </label>
+                <select
+                  id="digestDayOfWeek"
+                  name="digestDayOfWeek"
+                  className="select"
+                  defaultValue={settings.digestDayOfWeek}
+                >
+                  {WEEKDAYS.map((day, index) => (
+                    <option key={day} value={index}>
+                      {day}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="label" htmlFor="digestHour">
+                  Digest hour
+                </label>
+                <input
+                  id="digestHour"
+                  name="digestHour"
+                  type="number"
+                  min="0"
+                  max="23"
+                  className="input"
+                  defaultValue={settings.digestHour}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className="label" htmlFor="directorySyncHour">
+                  Directory sync hour
+                </label>
+                <input
+                  id="directorySyncHour"
+                  name="directorySyncHour"
+                  type="number"
+                  min="0"
+                  max="23"
+                  className="input"
+                  defaultValue={settings.directorySyncHour}
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="rolloverHour">
+                  Year-end rollover hour
+                </label>
+                <input
+                  id="rolloverHour"
+                  name="rolloverHour"
+                  type="number"
+                  min="0"
+                  max="23"
+                  className="input"
+                  defaultValue={settings.rolloverHour}
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="sessionHours">
+                  Stay signed in (hours)
+                </label>
+                <input
+                  id="sessionHours"
+                  name="sessionHours"
+                  type="number"
+                  min="1"
+                  max="168"
+                  className="input"
+                  defaultValue={settings.sessionHours}
+                />
+                <p className="hint">Applies to new sign-ins.</p>
+              </div>
+            </div>
+
             <p className="hint">
-              Sending requires SMTP_HOST to be configured. Without it, mail is written to the
-              application log instead.
+              Sending needs a mail relay, configured under Admin → Email. Without one, messages are
+              written to the application log.
             </p>
           </div>
         </section>

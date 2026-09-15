@@ -160,7 +160,7 @@ export async function submitWeek(input: unknown): Promise<ActionResult> {
 
   for (const approver of recipients) {
     await sendMail(
-      timesheetSubmitted({
+      await timesheetSubmitted({
         approver,
         owner: user,
         weekStart,
@@ -221,7 +221,7 @@ export async function decideTimesheet(input: unknown): Promise<ActionResult> {
   });
 
   await sendMail(
-    timesheetDecided({
+    await timesheetDecided({
       owner: timesheet.user,
       decider: user,
       approved: parsed.data.approve,

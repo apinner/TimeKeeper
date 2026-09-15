@@ -46,10 +46,20 @@ of, so it is not reachable from other machines until you either put that proxy
 in place or set `APP_BIND=0.0.0.0`. Migrations and reference-data seeding run
 automatically on start.
 
-The first person named in `BOOTSTRAP_ADMIN_UPN` becomes a sysadmin when they
-first sign in. Everyone else is created from Active Directory — either on their
-own first sign-in, or by the nightly sync — with their line manager taken from
-the directory's `manager` attribute.
+On a fresh install, opening TimeKeeper offers a one-time page to create the
+administrator account, with a password held by TimeKeeper. Sign in with it and
+connect Active Directory under Admin → Authentication; the setup page closes as
+soon as that account exists.
+
+Everyone else is created from Active Directory — either on their own first
+sign-in, or by the nightly sync — with their line manager taken from the
+directory's `manager` attribute.
+
+Local passwords are for administrators only, and exist so the system can be
+configured and repaired when the directory is unreachable. After five failed
+attempts one locks for fifteen minutes and then unlocks itself; the lock applies
+to the local password alone, so it cannot be used to deny someone their normal
+directory sign-in.
 
 ### Locally, for development
 
@@ -71,23 +81,33 @@ real sign-ins.
 
 ## Configuration
 
-Everything is environment variables; see `.env.example` for the full list.
+Almost everything is configured in the application, under Admin. The environment
+holds only what has to exist before the app can start:
 
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string |
-| `AUTH_SECRET` | Session signing key — `openssl rand -base64 32` |
-| `AUTH_URL` | Public HTTPS address of the app |
-| `LDAP_URL` | e.g. `ldap://dc01.example.local:389`, or `ldaps://…:636` to encrypt |
-| `LDAP_BASE_DN` | Where to search, e.g. `DC=example,DC=local` |
-| `LDAP_UPN_SUFFIX` | Appended when someone types a bare username |
-| `LDAP_ACCESS_GROUP_DN` | Only members of this group may sign in |
-| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | Read-only service account, for the nightly sync |
-| `BOOTSTRAP_ADMIN_UPN` | The first administrator |
-| `SMTP_*` | Mail relay. Leave `SMTP_HOST` empty and mail is written to the log |
-| `APP_BIND` | Interface the port is published on. `127.0.0.1` (default) or `0.0.0.0` |
+| `AUTH_SECRET` | Signs sessions **and** encrypts stored directory and mail passwords |
+| `AUTH_URL` | Public address of the app |
+| `AUTH_TRUST_HOST` | `true` behind your own reverse proxy |
+| `APP_BIND` / `APP_PORT` | Interface and port to publish on. `127.0.0.1` by default |
 | `ENABLE_SCHEDULER` | Set `false` on any replica that should not run scheduled jobs |
 | `TZ` | `Europe/London` |
+
+Configured in the app instead:
+
+| Where | What |
+|---|---|
+| Admin → Authentication | Directory connection, access group, service account, **Test connection**, administrator passwords |
+| Admin → Email | Mail relay, from address, **Send test message** |
+| Admin → Company settings | Leave year, allowances, carryover, scheduled job times, session length |
+
+Directory and mail passwords are encrypted with AES-256-GCM using a key derived
+from `AUTH_SECRET`, so a database dump does not hand over working credentials.
+Administrator passwords are hashed with scrypt and are never recoverable.
+
+> Changing `AUTH_SECRET` signs everyone out and makes the stored directory and
+> mail passwords unreadable — they must be entered again in Admin.
 
 ### Branding
 

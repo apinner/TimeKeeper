@@ -23,25 +23,28 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
       AUTH_URL: ${AUTH_URL:?set AUTH_URL in .env}
       AUTH_TRUST_HOST: "true"
-      LDAP_URL: ${LDAP_URL:?set LDAP_URL in .env}
-      LDAP_BASE_DN: ${LDAP_BASE_DN:?set LDAP_BASE_DN in .env}
-      LDAP_UPN_SUFFIX: ${LDAP_UPN_SUFFIX}
-      LDAP_ACCESS_GROUP_DN: ${LDAP_ACCESS_GROUP_DN}
-      LDAP_BIND_DN: ${LDAP_BIND_DN}
-      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD}
-      LDAP_STARTTLS: ${LDAP_STARTTLS:-false}
-      LDAP_TLS_REJECT_UNAUTHORIZED: ${LDAP_TLS_REJECT_UNAUTHORIZED:-true}
-      LDAP_NESTED_GROUPS: ${LDAP_NESTED_GROUPS:-true}
-      LDAP_TIMEOUT_MS: ${LDAP_TIMEOUT_MS:-10000}
-      BOOTSTRAP_ADMIN_UPN: ${BOOTSTRAP_ADMIN_UPN}
-      APP_URL: ${APP_URL:-${AUTH_URL}}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_SECURE: ${SMTP_SECURE:-false}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
-      SMTP_FROM: ${SMTP_FROM:-TimeKeeper <timekeeper@example.com>}
       ENABLE_SCHEDULER: ${ENABLE_SCHEDULER:-true}
+      # Directory and mail settings live in the database and are edited in
+      # Admin. These are only read once, to carry an older deployment's
+      # configuration over, and can be deleted from .env afterwards.
+      LDAP_URL: ${LDAP_URL:-}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:-}
+      LDAP_UPN_SUFFIX: ${LDAP_UPN_SUFFIX:-}
+      LDAP_ACCESS_GROUP_DN: ${LDAP_ACCESS_GROUP_DN:-}
+      LDAP_BIND_DN: ${LDAP_BIND_DN:-}
+      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+      LDAP_STARTTLS: ${LDAP_STARTTLS:-}
+      LDAP_TLS_REJECT_UNAUTHORIZED: ${LDAP_TLS_REJECT_UNAUTHORIZED:-}
+      LDAP_NESTED_GROUPS: ${LDAP_NESTED_GROUPS:-}
+      LDAP_BIND_MODE: ${LDAP_BIND_MODE:-}
+      LDAP_PERSON_FILTER: ${LDAP_PERSON_FILTER:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      APP_URL: ${APP_URL:-}
       TZ: ${TZ:-Europe/London}
     ports:
       - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"

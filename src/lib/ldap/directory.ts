@@ -62,8 +62,12 @@ async function connect(config: LdapConfig): Promise<Client> {
  * and returns success, so skipping it would let anyone sign in as anyone by
  * leaving the password box blank.
  */
-export async function authenticate(username: string, password: string): Promise<AuthResult> {
-  const config = requireLdapConfig();
+export async function authenticate(
+  username: string,
+  password: string,
+  override?: LdapConfig,
+): Promise<AuthResult> {
+  const config = override ?? (await requireLdapConfig());
   const upn = normaliseUpn(username ?? "", config.upnSuffix);
 
   if (upn === "" || !password) return { ok: false, reason: "no-credentials" };
@@ -164,7 +168,7 @@ async function isInAccessGroup(
 
 /** Look up one entry by distinguished name — used to turn a manager DN into a person. */
 export async function profileByDn(dn: string): Promise<DirectoryProfile | null> {
-  const config = requireLdapConfig();
+  const config = await requireLdapConfig();
   const client = await connectAsService(config);
   if (!client) return null;
 
@@ -186,8 +190,10 @@ export async function profileByDn(dn: string): Promise<DirectoryProfile | null> 
 }
 
 /** Everyone the app cares about, for the nightly sync. Needs a service account. */
-export async function listDirectoryUsers(): Promise<DirectoryProfile[] | null> {
-  const config = requireLdapConfig();
+export async function listDirectoryUsers(
+  override?: LdapConfig,
+): Promise<DirectoryProfile[] | null> {
+  const config = override ?? (await requireLdapConfig());
   const client = await connectAsService(config);
   if (!client) return null;
 

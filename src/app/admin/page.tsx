@@ -53,9 +53,19 @@ export default async function AdminPage() {
           detail={`${holidays} dates — never deducted from anyone's allowance`}
         />
         <AdminCard
+          href="/admin/authentication"
+          title="Authentication"
+          detail="Active Directory connection, and administrator passwords for when it is unreachable"
+        />
+        <AdminCard
+          href="/admin/email"
+          title="Email"
+          detail="Mail relay for approvals and reminders, with a test message"
+        />
+        <AdminCard
           href="/admin/settings"
           title="Company settings"
-          detail="Leave year, carryover cap and expiry, default allowance, reminders"
+          detail="Leave year, carryover cap and expiry, default allowance, scheduled jobs"
         />
         <AdminCard
           href="/delegation"

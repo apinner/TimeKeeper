@@ -60,6 +60,9 @@ but stops verifying who is on the other end.
 
 ## 2. Fill in the environment file
 
+Only infrastructure lives here now. Everything about the directory, email and
+company policy is configured inside the application.
+
 ```bash
 cp .env.example .env
 ```
@@ -70,7 +73,7 @@ Generate a session key:
 openssl rand -base64 32
 ```
 
-Then set, at minimum:
+Then set:
 
 ```ini
 POSTGRES_PASSWORD=<a long random password>
@@ -79,41 +82,18 @@ DATABASE_URL=postgresql://timekeeper:<same password>@postgres:5432/timekeeper?sc
 AUTH_SECRET=<the generated key>
 AUTH_URL=https://timekeeper.example.com
 AUTH_TRUST_HOST=true
-
-LDAP_URL=ldap://dc01.yourdomain.local:389
-LDAP_BASE_DN=DC=yourdomain,DC=local
-LDAP_UPN_SUFFIX=@yourcompany.co.uk
-LDAP_ACCESS_GROUP_DN=CN=TimeKeeper-Users,OU=Groups,DC=yourdomain,DC=local
-LDAP_BIND_DN=CN=svc-timekeeper,OU=Service Accounts,DC=yourdomain,DC=local
-LDAP_BIND_PASSWORD=<service account password>
-
-BOOTSTRAP_ADMIN_UPN=you@yourcompany.co.uk
 ```
 
-`LDAP_UPN_SUFFIX` is what lets people type just `alex.pinner` instead of the
-full `alex.pinner@yourcompany.co.uk`. Both forms work, as does
-`DOMAIN\alex.pinner`.
+`AUTH_SECRET` does double duty: it signs sessions **and** encrypts the directory
+and mail passwords stored in the database. Changing it signs everyone out and
+makes those stored passwords unreadable, so they have to be re-entered in Admin.
+Keep it somewhere you can find it again.
 
-`BOOTSTRAP_ADMIN_UPN` must be your own userPrincipalName exactly as AD holds it.
-That account becomes a sysadmin on first sign-in; without it nobody can reach
-the admin screens.
+### Upgrading from a version that used LDAP_* and SMTP_* variables
 
-### Email
-
-```ini
-SMTP_HOST=smtp.office365.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=timekeeper@yourcompany.com
-SMTP_PASSWORD=<password or app password>
-SMTP_FROM=TimeKeeper <timekeeper@yourcompany.com>
-```
-
-Leave `SMTP_HOST` empty to start with: mail is written to the container log
-instead of being sent, which is a good way to see what would go out before
-pointing it at a live relay.
-
----
+Leave them in `.env` for one start. They are copied into the database
+automatically, the log says so, and they can then be deleted. Settings already
+in the database are never overwritten.
 
 ## 3. Start it
 
@@ -166,24 +146,45 @@ building the sign-in redirect. Sign-in will fail in confusing ways if
 
 ## 4. First run, in order
 
-1. **Sign in yourself**, with your Windows username and password. Your account
-   is created and made sysadmin.
-2. **Admin → Company settings.** Leave year start, default allowance, carryover
-   cap and expiry date. Do this before anyone books leave.
-3. **Admin → Bank holidays.** Check the seeded dates and add any company
+1. **Open TimeKeeper in a browser.** While nobody can sign in, it offers a
+   one-time page to create the administrator account. Use the same username
+   Active Directory knows you by, so your directory account attaches to this one
+   rather than creating a second. Choose a password of at least 12 characters —
+   this is held by TimeKeeper, separately from your Windows password, and exists
+   so you can get in when the directory cannot be reached.
+
+   The setup page closes permanently once that account exists.
+
+2. **Admin → Authentication.** Enter the directory settings from step 1 and use
+   **Test connection** before saving: with a username and password it proves a
+   real sign-in including group membership, and tells you what it read back.
+   Then tick *Allow staff to sign in with their directory account* and save.
+
+   **Sync now** will then create an account for everyone in the access group.
+
+3. **Admin → Email.** The mail relay, with a **Send test message** button.
+   Leaving the host empty is a valid choice: messages are written to the
+   application log instead of being sent.
+
+4. **Admin → Company settings.** Leave year start, default allowance, carryover
+   cap and expiry date, and the times the scheduled jobs run. Do this before
+   anyone books leave.
+5. **Admin → Bank holidays.** Check the seeded dates and add any company
    shutdown days.
-4. **Admin → Projects and tasks.** Nobody can record hours until a project has
+6. **Admin → Projects and tasks.** Nobody can record hours until a project has
    at least one task.
-5. **Wait for the nightly sync, or ask everyone to sign in once.** With a
+7. **Wait for the nightly sync, or ask everyone to sign in once.** With a
    service account configured, the 02:00 sync creates an account for every
    member of the access group and fills in line managers from AD, so you may
    not need to do anything here.
-6. **Admin → People.** Names, email, department, job title and line manager come
+8. **Admin → People.** Names, email, department, job title and line manager come
    from AD and are refreshed on every sign-in, so what is left to set is each
    person's working pattern and allowance. Anyone whose AD record has no
    `manager` will show as having none, and their requests go to the HR queue.
-7. **Promote whoever runs HR** to HR / Admin so you are not the only one who can
-   act on the queue.
+9. **Promote whoever runs HR** to HR / Admin so you are not the only one who can
+   act on the queue. Under Admin → Authentication you can give them a local
+   password too, so you are not the only person who can get in when the
+   directory is down.
 
 ---
 
@@ -195,12 +196,14 @@ group's full distinguished name, and that they are a member.
 
 **"TimeKeeper cannot reach the directory."**
 Not a password problem. Check the container can reach the domain controller on
-that port, and that `LDAP_URL` is right. If you have just switched to `ldaps://`
-and it started failing, the certificate is the likely cause — see
-`LDAP_TLS_REJECT_UNAUTHORIZED`.
+that port, and that the server URL in Admin → Authentication is right. If you
+have just switched to `ldaps://` and it started failing, the certificate is the
+likely cause — untick *Verify the server certificate* under Advanced to confirm
+that is what it is.
 
 **Everyone's password is rejected.**
-Check `LDAP_UPN_SUFFIX` matches what AD holds in `userPrincipalName`. This is
+Check the username suffix in Admin → Authentication matches what AD holds in
+`userPrincipalName`. This is
 often a different domain from the internal AD domain — `@company.co.uk` rather
 than `@company.local`.
 
@@ -209,6 +212,18 @@ It deactivates anyone not in the access group, by design, so that leavers lose
 access. Check the group still contains everyone it should. The sync refuses to
 act at all if the directory returns nobody, so a total outage cannot lock out
 the company.
+
+**Locked out: the directory is broken and nobody can sign in.**
+Any administrator with a local password can still sign in and fix the settings.
+That is what local passwords are for, and it is worth making sure at least two
+people have one. After five failed attempts a local password locks for fifteen
+minutes and then unlocks itself; the lock does not affect directory sign-in.
+
+**Lost the only administrator password.**
+Connect to the database and clear the directory setting, which reopens the setup
+page: `docker compose exec postgres psql -U timekeeper -d timekeeper -c 'UPDATE
+"Settings" SET "ldapEnabled" = false;'` then clear the password hashes with
+`UPDATE "User" SET "passwordHash" = NULL;`. The next visit offers setup again.
 
 **Nobody has a line manager.**
 Check the `manager` attribute is populated in AD, and that a service account is
@@ -220,5 +235,7 @@ Check the line manager under Admin → People, and look for an active delegation
 under Approval cover.
 
 **No email is arriving.**
-`docker compose logs app` — with `SMTP_HOST` unset, messages are logged rather
-than sent. Send failures are logged and deliberately never block an approval.
+Admin → Email has a **Send test message** button that reports exactly what the
+mail server said. With no host configured, messages are written to the
+application log instead — `docker compose logs app`. Send failures are logged
+and deliberately never block an approval.

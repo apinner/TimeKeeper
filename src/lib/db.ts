@@ -9,6 +9,20 @@ function createClient(): PrismaClient {
   return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
 
-export const prisma = globalForPrisma.prisma ?? createClient();
+function client(): PrismaClient {
+  if (!globalForPrisma.prisma) globalForPrisma.prisma = createClient();
+  return globalForPrisma.prisma;
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+/**
+ * Created on first use rather than on import, so that importing a module which
+ * merely *mentions* the database — a pure settings mapper, say — does not
+ * require a connection string. That matters during the build, in tests, and in
+ * any bundle that reaches this file without ever querying.
+ */
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, property, receiver) {
+    const value = Reflect.get(client(), property, receiver);
+    return typeof value === "function" ? value.bind(client()) : value;
+  },
+}) as PrismaClient;

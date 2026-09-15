@@ -4,7 +4,6 @@ import { leaveYearStartFor } from "@/lib/domain/leave-year";
 import { proRataAllowanceMinutes } from "@/lib/domain/leave-year";
 import { DEFAULT_PATTERN } from "@/lib/domain/patterns";
 import { getSettings } from "@/lib/settings";
-import type { Role } from "@prisma/client";
 
 /**
  * Everything a newly provisioned person needs to be able to use the system on
@@ -49,15 +48,4 @@ export async function ensureUserSetUp(userId: string): Promise<void> {
       allowanceMinutes,
     },
   });
-}
-
-/**
- * The first administrator is named by BOOTSTRAP_ADMIN_UPN so that a fresh
- * deployment has somebody who can assign roles and line managers. Every role
- * after that is granted in the app.
- */
-export function bootstrapRoleFor(upn: string): Role | null {
-  const bootstrap = process.env.BOOTSTRAP_ADMIN_UPN?.trim().toLowerCase();
-  if (!bootstrap) return null;
-  return upn.trim().toLowerCase() === bootstrap ? "SYSADMIN" : null;
 }

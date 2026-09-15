@@ -193,7 +193,7 @@ export async function decideLeaveRequest(input: unknown): Promise<ActionResult> 
     : null;
 
   await sendMail(
-    leaveDecided({
+    await leaveDecided({
       requester: request.user,
       decider: user,
       approved: parsed.data.approve,
@@ -250,7 +250,7 @@ export async function cancelLeaveRequest(requestId: string): Promise<ActionResul
     const approver = await prisma.user.findUnique({ where: { id: request.approverId } });
     if (approver) {
       await sendMail(
-        leaveCancelled({
+        await leaveCancelled({
           approver,
           requester: request.user,
           typeName: request.leaveType.name,

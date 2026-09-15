@@ -28,7 +28,7 @@ export async function sendTimesheetReminders(now: PlainDate = today()): Promise<
   });
 
   for (const person of people) {
-    await sendMail(timesheetReminder({ owner: person, weekStart }));
+    await sendMail(await timesheetReminder({ owner: person, weekStart }));
   }
   return people.length;
 }
@@ -66,7 +66,7 @@ export async function sendManagerDigests(): Promise<number> {
     ]);
 
     if (pendingLeave + pendingTimesheets === 0) continue;
-    await sendMail(managerDigest({ approver, pendingLeave, pendingTimesheets }));
+    await sendMail(await managerDigest({ approver, pendingLeave, pendingTimesheets }));
     sent += 1;
   }
   return sent;

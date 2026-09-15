@@ -247,6 +247,13 @@ export async function updateSettings(form: FormData): Promise<void> {
       carryoverExpiryMonth: clamp(number(form, "carryoverExpiryMonth"), 1, 12),
       timesheetRemindersOn: form.get("timesheetRemindersOn") === "on",
       managerDigestOn: form.get("managerDigestOn") === "on",
+      reminderDayOfWeek: clamp(number(form, "reminderDayOfWeek"), 0, 6),
+      reminderHour: clamp(number(form, "reminderHour"), 0, 23),
+      digestDayOfWeek: clamp(number(form, "digestDayOfWeek"), 0, 6),
+      digestHour: clamp(number(form, "digestHour"), 0, 23),
+      directorySyncHour: clamp(number(form, "directorySyncHour"), 0, 23),
+      rolloverHour: clamp(number(form, "rolloverHour"), 0, 23),
+      sessionHours: clamp(number(form, "sessionHours"), 1, 168),
     },
   });
 
@@ -290,7 +297,7 @@ export async function createDelegation(form: FormData): Promise<void> {
 
   if (manager && delegate) {
     await sendMail(
-      delegationAssigned({
+      await delegationAssigned({
         delegate,
         manager,
         start: parsed.data.startDate,
@@ -318,5 +325,9 @@ export async function deleteDelegation(form: FormData): Promise<void> {
 }
 
 function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, Math.trunc(value) || min));
+  const truncated = Math.trunc(value);
+  if (!Number.isFinite(truncated)) return min;
+  // Zero is a legitimate value for a weekday (Sunday) and an hour (midnight),
+  // so it must not be treated as "unset" and replaced by the minimum.
+  return Math.max(min, Math.min(max, truncated));
 }

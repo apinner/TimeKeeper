@@ -21,7 +21,7 @@ Status: **awaiting sign-off**. No application code has been written yet.
 | 3 | Database | PostgreSQL inside the Compose stack, named volume | Self-contained; you own patching and backups. A `pg_dump` script is provided |
 | 4 | Provisioning | From Active Directory, on first sign-in and by a nightly sync | Names, email, department, job title and **line manager** come from AD, so the org chart maintains itself |
 | 5 | Sign-in policy | LDAP bind as the user; membership of an access group required | IT controls access via an AD group. Supersedes the original Entra ID decision — see §7 |
-| 6 | Roles | In-app: Employee, Manager, HR/Admin, Sysadmin. First admin bootstrapped from `BOOTSTRAP_ADMIN_UPN` | HR changes roles without an IT ticket. Manager rights also follow implicitly from having direct reports |
+| 6 | Roles | In-app: Employee, Manager, HR/Admin, Sysadmin. The first administrator is created by the first-run setup page — see §8 | HR changes roles without an IT ticket. Manager rights also follow implicitly from having direct reports |
 | 7 | Locale | Europe/London, weeks start Monday, dd/mm/yyyy, decimal hours, English (UK) | Dates stored as plain calendar dates, so a booked Tuesday stays Tuesday across BST transitions |
 
 ### Timesheets
@@ -131,11 +131,10 @@ reminders, year-end carryover, carryover expiry) runs in-process on a cron
 schedule guarded by a database lock.
 
 Environment variables: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`,
-`AUTH_MICROSOFT_ENTRA_ID_ID` / `_SECRET` / `_TENANT_ID`, `SMTP_*`,
-`BOOTSTRAP_ADMIN_UPN`, `TZ`.
+`AUTH_TRUST_HOST`, `APP_BIND`, `APP_PORT`, `ENABLE_SCHEDULER`, `TZ`. Everything
+else is configured in the application — see §8.
 
-A setup guide will cover the Entra app registration end to end: single-tenant
-registration, redirect URI, client secret, and requiring user assignment.
+The setup guide covers preparing Active Directory and the first run.
 
 ---
 
@@ -201,3 +200,41 @@ just-in-time provisioning created.
 **Transport.** Configured as `ldap://` on port 389 at the owner's direction. A
 simple bind on that port sends passwords in clear text; moving to `ldaps://` or
 `LDAP_STARTTLS=true` is a change of environment variable, not of code.
+
+
+---
+
+## 8. Configuration moved into the application
+
+Directory, mail and scheduling settings were originally environment variables.
+They now live in the database and are edited under Admin, leaving only
+infrastructure in the environment: the database URL, the session secret, the
+public URL, the port binding, the timezone, and whether this instance runs
+scheduled jobs.
+
+**Why.** The directory settings had a bootstrap problem: they had to be correct
+before anyone could sign in to correct them. A wrong base DN meant editing a
+file on the server and redeploying. Administrators can now hold a local
+password, sign in without the directory, and configure it — with a **Test
+connection** button that proves the settings before they are saved.
+
+**First run.** While no local password exists and the directory is not
+configured, the app offers a one-time setup page to create the administrator.
+It closes permanently once that account exists.
+
+**Local passwords** are restricted to administrators, so staff have one source
+of truth. Five failed attempts locks the local password for fifteen minutes,
+after which it unlocks itself. That lock deliberately does not extend to
+directory sign-in: otherwise anyone knowing an administrator's username could
+deny them access by guessing five times.
+
+**Secrets.** The directory service account and mail relay passwords are
+encrypted with AES-256-GCM under a key derived from `AUTH_SECRET`, so a database
+dump or nightly backup does not contain working credentials. This protects
+backups, not the running application — anything holding `AUTH_SECRET` can
+decrypt. Administrator passwords are hashed with scrypt and are not recoverable
+at all.
+
+**Upgrade path.** On the first start after this change, any `LDAP_*` and
+`SMTP_*` variables still set are copied into the database once and the log says
+so. They can then be removed.
