@@ -1,0 +1,55 @@
+# TimeKeeper — app and database.
+#
+# No reverse proxy is included: TLS is terminated by your existing
+# infrastructure. Point it at http://timekeeper:3000 (or publish the port and
+# use 127.0.0.1:3000), and set AUTH_URL to the public HTTPS address.
+
+services:
+  app:
+    build: .
+    image: timekeeper:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-timekeeper}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-timekeeper}?schema=public
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      AUTH_URL: ${AUTH_URL:?set AUTH_URL in .env}
+      AUTH_TRUST_HOST: "true"
+      AUTH_MICROSOFT_ENTRA_ID_ID: ${AUTH_MICROSOFT_ENTRA_ID_ID}
+      AUTH_MICROSOFT_ENTRA_ID_SECRET: ${AUTH_MICROSOFT_ENTRA_ID_SECRET}
+      AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: ${AUTH_MICROSOFT_ENTRA_ID_TENANT_ID}
+      BOOTSTRAP_ADMIN_UPN: ${BOOTSTRAP_ADMIN_UPN}
+      APP_URL: ${APP_URL:-${AUTH_URL}}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM:-TimeKeeper <timekeeper@example.com>}
+      ENABLE_SCHEDULER: ${ENABLE_SCHEDULER:-true}
+      TZ: ${TZ:-Europe/London}
+    ports:
+      # Bound to loopback: your reverse proxy sits in front of this.
+      - "127.0.0.1:3000:3000"
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-timekeeper}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-timekeeper}
+      TZ: ${TZ:-Europe/London}
+    volumes:
+      - timekeeper-data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-timekeeper} -d ${POSTGRES_DB:-timekeeper}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  timekeeper-data:

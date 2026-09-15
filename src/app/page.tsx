@@ -2,7 +2,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { StatusPill } from "@/components/status-pill";
 import { prisma } from "@/lib/db";
-import { addDays, formatDate, formatLongDate, startOfWeek, toDbDate, toPlainDate, today } from "@/lib/dates";
+import { formatDate, formatLongDate, startOfWeek, toDbDate, toPlainDate, today } from "@/lib/dates";
 import { formatDays, formatHours } from "@/lib/duration";
 import { balanceFor } from "@/lib/queries/leave";
 import { pendingApprovalCount } from "@/lib/queries/approvals";

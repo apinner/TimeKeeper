@@ -141,14 +141,31 @@ registration, redirect URI, client secret, and requiring user assignment.
 
 ## 4. Open items
 
-- **Brand colours and logo** — requested; the theme is a single CSS variable file so
-  this can be supplied at any point without touching components.
+- **The real logo file.** `public/logo.svg` is a placeholder wordmark in the brand
+  colours; drop the actual asset in at that path.
+- **Exact brand hexes.** Orange `#F08120` and grey `#53565A` were sampled by eye from
+  the supplied logo. Both are defined once at the top of `src/app/globals.css`.
 - **SMTP host, port, credentials and from-address** — needed for deployment, not for
   the build.
 
 ---
 
-## 5. Known risks accepted
+## 5. Implementation notes
+
+- **Durations are stored as integer minutes.** Hours-granularity leave against
+  part-time patterns produces a great deal of arithmetic; integers remove any
+  possibility of floating-point drift in a balance. The interface still shows decimal
+  hours and days.
+- **Dates are plain `YYYY-MM-DD` strings in all domain logic**, converted only at the
+  database boundary. A Tuesday booked off stays Tuesday regardless of server timezone
+  or a BST transition.
+- **Contrast.** White on the brand orange is ~2.7:1 and fails WCAG AA, so primary
+  buttons use orange with near-black text (~6:1) — the pairing the logo itself uses.
+- **Balance reports show expired carryover as its own column.** Without it,
+  "entitlement 27, taken 0, remaining 25" reads as an arithmetic error rather than two
+  carried days lapsing unused.
+
+## 6. Known risks accepted
 
 - Negative leave balances are possible by design (#20) and need a human to notice.
 - With JIT-only provisioning, leavers stay active in TimeKeeper until an admin

@@ -7,15 +7,16 @@ import { formatDays, formatHours } from "@/lib/duration";
 import { assessOverdraft } from "@/lib/domain/balance";
 import { pendingLeaveRequests, pendingTimesheets } from "@/lib/queries/approvals";
 import { balanceFor, clashesFor } from "@/lib/queries/leave";
-import { canApproveAnything, requireUser } from "@/lib/session";
+import { activeDelegationsFor, canApproveAnything, requireUser } from "@/lib/session";
 
 export default async function ApprovalsPage() {
   const user = await requireUser();
   if (!(await canApproveAnything(user))) redirect("/");
 
-  const [leaveRequests, timesheets] = await Promise.all([
+  const [leaveRequests, timesheets, actingFor] = await Promise.all([
     pendingLeaveRequests(user),
     pendingTimesheets(user),
+    activeDelegationsFor(user.id),
   ]);
 
   // Each request carries the requester's balance and their team's clashes, so
@@ -39,6 +40,10 @@ export default async function ApprovalsPage() {
         balance,
         clashes,
         managerName: manager?.name ?? manager?.upn ?? null,
+        // "On behalf of" only when this viewer actually holds the manager's
+        // delegation. An administrator acting on someone else's team is acting
+        // as HR, not as that manager's deputy.
+        actingAsDelegate: request.approverId !== null && actingFor.includes(request.approverId),
         overdraft: request.leaveType.deductsFromAllowance
           ? assessOverdraft(balance, request.totalMinutes)
           : null,
@@ -69,7 +74,16 @@ export default async function ApprovalsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {leaveDetail.map(({ request, start, end, balance, clashes, overdraft, managerName }) => (
+            {leaveDetail.map(({
+              request,
+              start,
+              end,
+              balance,
+              clashes,
+              overdraft,
+              managerName,
+              actingAsDelegate,
+            }) => (
               <div key={request.id} className="card">
                 <div className="card-header">
                   <div>
@@ -77,9 +91,11 @@ export default async function ApprovalsPage() {
                     <p className="text-xs text-[var(--color-muted)]">
                       {request.user.department ?? "No department"}
                       {request.approverId === null ? " · HR queue (no line manager)" : ""}
-                      {request.approverId && request.approverId !== user.id && managerName
-                        ? ` · on behalf of ${managerName}`
-                        : ""}
+                      {managerName && actingAsDelegate
+                        ? ` · you are covering for ${managerName}`
+                        : managerName && request.approverId !== user.id
+                          ? ` · line manager ${managerName}`
+                          : ""}
                     </p>
                   </div>
                   <span className="pill pill-brand">{request.leaveType.name}</span>
