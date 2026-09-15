@@ -1,29 +1,42 @@
 # syntax=docker/dockerfile:1
 
-# --- Dependencies ----------------------------------------------------------
+# --- Build dependencies (everything, including dev) -------------------------
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# --- Build -----------------------------------------------------------------
+# --- Runtime dependencies ---------------------------------------------------
+# A real production install rather than a hand-picked set of folders: the Prisma
+# CLI pulls in a dependency tree of its own (@prisma/config needs effect, c12
+# and others), and cherry-picking directories misses them.
+FROM node:22-alpine AS prod-deps
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+# generate only reads the schema; the URL is never connected to here.
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
+RUN npx prisma generate
+
+# --- Build ------------------------------------------------------------------
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-# The Prisma client is generated at build time. The URL is never read here —
-# generate only needs the schema — but the config file requires the variable to
-# be present.
 ENV DATABASE_URL="postgresql://build:build@localhost:5432/build"
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate
 RUN npm run build
 
-# --- Runtime ---------------------------------------------------------------
+# --- Runtime ----------------------------------------------------------------
 FROM node:22-alpine AS runner
 WORKDIR /app
 
-RUN apk add --no-cache tzdata && addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+RUN apk add --no-cache tzdata \
+  && addgroup -g 1001 -S nodejs \
+  && adduser -S nextjs -u 1001
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -31,18 +44,18 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV TZ=Europe/London
 
-COPY --from=builder /app/public ./public
+# Production dependencies first, with the generated Prisma client. The Next
+# standalone bundle is copied over the top, so its own traced copies of shared
+# packages win where the two overlap.
+COPY --from=prod-deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
-# Migrations run on start, so the schema, config and the Prisma CLI come along.
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
-COPY --from=builder /app/node_modules/tsx ./node_modules/tsx
-COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
+# Needed by the entrypoint to migrate and seed on start.
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
+
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
