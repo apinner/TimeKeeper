@@ -1,8 +1,15 @@
 # TimeKeeper — app and database.
 #
 # No reverse proxy is included: TLS is terminated by your existing
-# infrastructure. Point it at http://timekeeper:3000 (or publish the port and
-# use 127.0.0.1:3000), and set AUTH_URL to the public HTTPS address.
+# infrastructure, which should forward to the published port below.
+#
+# APP_BIND controls which interface the port is published on:
+#   127.0.0.1  (default) reachable only from the server itself, for a reverse
+#              proxy running on that same host
+#   0.0.0.0    reachable from anywhere on your network — convenient for a first
+#              look, but see the note on AUTH_URL in .env.example: Microsoft
+#              Entra ID will not accept a plain http:// redirect URI for
+#              anything other than localhost, so single sign-on needs HTTPS.
 
 services:
   app:
@@ -31,8 +38,7 @@ services:
       ENABLE_SCHEDULER: ${ENABLE_SCHEDULER:-true}
       TZ: ${TZ:-Europe/London}
     ports:
-      # Bound to loopback: your reverse proxy sits in front of this.
-      - "127.0.0.1:3000:3000"
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
 
   postgres:
     image: postgres:17-alpine

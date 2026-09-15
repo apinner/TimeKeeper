@@ -120,10 +120,25 @@ docker compose logs -f app
 On first start the app applies migrations and seeds leave types, England &
 Wales bank holidays and default settings.
 
+### "The site cannot be reached" on `serverip:3000`
+
+By default the port is published on the server's loopback interface only, so it
+answers on the server itself but not from anywhere else on the network. To reach
+it directly while you are setting things up, set this in `.env` and redeploy:
+
+```ini
+APP_BIND=0.0.0.0
+```
+
+Then `http://<server-ip>:3000` works. **Sign-in will still fail over plain
+http**, because Entra ID only accepts `http://` redirect URIs for `localhost` —
+every other address must be HTTPS. Direct access is for confirming the app is
+alive; real use needs the proxy below.
+
 ### Put your reverse proxy in front
 
-The app listens on `127.0.0.1:3000` and expects TLS to be terminated by your own
-infrastructure. Forward to it and preserve the original host. With nginx:
+The app listens on `127.0.0.1:3000` by default and expects TLS to be terminated
+by your own infrastructure. Forward to it and preserve the original host. With nginx:
 
 ```nginx
 location / {

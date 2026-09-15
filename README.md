@@ -41,8 +41,10 @@ cp .env.example .env     # then fill it in — see below
 docker compose up -d --build
 ```
 
-The app listens on `127.0.0.1:3000` for your own reverse proxy to sit in front
-of. Migrations and reference-data seeding run automatically on start.
+The app publishes on `127.0.0.1:3000` for your own reverse proxy to sit in front
+of, so it is not reachable from other machines until you either put that proxy
+in place or set `APP_BIND=0.0.0.0`. Migrations and reference-data seeding run
+automatically on start.
 
 The first person named in `BOOTSTRAP_ADMIN_UPN` becomes a sysadmin when they
 first sign in. Everyone else is created as an employee on their own first
@@ -78,6 +80,7 @@ Everything is environment variables; see `.env.example` for the full list.
 | `AUTH_MICROSOFT_ENTRA_ID_ID` / `_SECRET` / `_TENANT_ID` | From the app registration |
 | `BOOTSTRAP_ADMIN_UPN` | The first administrator |
 | `SMTP_*` | Mail relay. Leave `SMTP_HOST` empty and mail is written to the log |
+| `APP_BIND` | Interface the port is published on. `127.0.0.1` (default) or `0.0.0.0` |
 | `ENABLE_SCHEDULER` | Set `false` on any replica that should not run scheduled jobs |
 | `TZ` | `Europe/London` |
 
