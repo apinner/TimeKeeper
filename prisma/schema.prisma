@@ -1,0 +1,365 @@
+// TimeKeeper schema.
+//
+// All durations are stored as integer MINUTES. Leave is booked in hours against
+// per-person working patterns, so integer minutes avoid any floating-point drift
+// in balances. The UI converts to decimal hours and to days for display.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  HR_ADMIN
+  SYSADMIN
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum TimesheetStatus {
+  OPEN
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------------
+// Identity. Users are provisioned just-in-time on first Entra ID sign-in, so
+// this table doubles as the Auth.js user table.
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String    @id @default(cuid())
+  entraObjectId  String?   @unique
+  upn            String    @unique
+  email          String    @unique
+  name           String?
+  emailVerified  DateTime?
+  image          String?
+  jobTitle       String?
+  department     String?
+  role           Role      @default(EMPLOYEE)
+  isActive       Boolean   @default(true)
+  startDate      DateTime? @db.Date
+  endDate        DateTime? @db.Date
+
+  managerId String?
+  manager   User?   @relation("LineManagement", fields: [managerId], references: [id], onDelete: SetNull)
+  reports   User[]  @relation("LineManagement")
+
+  accounts Account[]
+  sessions Session[]
+
+  workingPattern      WorkingPattern?
+  entitlements        Entitlement[]
+  adjustments         BalanceAdjustment[]   @relation("AdjustmentSubject")
+  adjustmentsCreated  BalanceAdjustment[]   @relation("AdjustmentAuthor")
+  leaveRequests       LeaveRequest[]        @relation("LeaveRequester")
+  leaveDecisions      LeaveRequest[]        @relation("LeaveDecider")
+  leaveDays           LeaveDay[]
+  timesheets          Timesheet[]           @relation("TimesheetOwner")
+  timesheetDecisions  Timesheet[]           @relation("TimesheetDecider")
+  delegationsGiven    Delegation[]          @relation("DelegatingManager")
+  delegationsReceived Delegation[]          @relation("Delegate")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([managerId])
+  @@index([isActive])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Working patterns and delegation
+// ---------------------------------------------------------------------------
+
+// One current pattern per person. History stays accurate without versioning
+// because every LeaveDay records the minutes actually booked at the time.
+model WorkingPattern {
+  id             String @id @default(cuid())
+  userId         String @unique
+  user           User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mondayMinutes    Int  @default(450)
+  tuesdayMinutes   Int  @default(450)
+  wednesdayMinutes Int  @default(450)
+  thursdayMinutes  Int  @default(450)
+  fridayMinutes    Int  @default(450)
+  saturdayMinutes  Int  @default(0)
+  sundayMinutes    Int  @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Date-bounded so cover expires by itself rather than going stale.
+model Delegation {
+  id         String   @id @default(cuid())
+  managerId  String
+  manager    User     @relation("DelegatingManager", fields: [managerId], references: [id], onDelete: Cascade)
+  delegateId String
+  delegate   User     @relation("Delegate", fields: [delegateId], references: [id], onDelete: Cascade)
+  startDate  DateTime @db.Date
+  endDate    DateTime @db.Date
+  note       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([managerId, startDate, endDate])
+  @@index([delegateId])
+}
+
+// ---------------------------------------------------------------------------
+// Leave
+// ---------------------------------------------------------------------------
+
+model LeaveType {
+  id                    String  @id @default(cuid())
+  code                  String  @unique
+  name                  String
+  colour                String  @default("#53565A")
+  deductsFromAllowance  Boolean @default(true)
+  requiresApproval      Boolean @default(true)
+  isPaid                Boolean @default(true)
+  requiresNote          Boolean @default(false)
+  isActive              Boolean @default(true)
+  sortOrder             Int     @default(0)
+
+  requests LeaveRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Entitlement {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leaveYearStart     DateTime @db.Date
+  allowanceMinutes   Int
+  carriedOverMinutes Int      @default(0)
+  carryoverExpiresOn DateTime? @db.Date
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, leaveYearStart])
+}
+
+// Append-only. Covers buying days, goodwill exceptions and correcting mistakes.
+model BalanceAdjustment {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation("AdjustmentSubject", fields: [userId], references: [id], onDelete: Cascade)
+  leaveYearStart DateTime @db.Date
+  minutes        Int
+  reason         String
+  createdById    String?
+  createdBy      User?    @relation("AdjustmentAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, leaveYearStart])
+}
+
+model LeaveRequest {
+  id              String      @id @default(cuid())
+  userId          String
+  user            User        @relation("LeaveRequester", fields: [userId], references: [id], onDelete: Cascade)
+  leaveTypeId     String
+  leaveType       LeaveType   @relation(fields: [leaveTypeId], references: [id])
+  startDate       DateTime    @db.Date
+  endDate         DateTime    @db.Date
+  totalMinutes    Int
+  status          LeaveStatus @default(PENDING)
+  note            String?
+  // Routed approver at submission time: delegate, else line manager, else null
+  // for the shared HR queue.
+  approverId      String?
+  decidedById     String?
+  decidedBy       User?       @relation("LeaveDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt       DateTime?
+  decisionComment String?
+  // Recorded when the approver acted under a delegation, so "approved by B on
+  // behalf of A" survives the delegation expiring.
+  decidedOnBehalfOfId String?
+  cancelledAt     DateTime?
+
+  days LeaveDay[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([approverId, status])
+  @@index([status, startDate])
+}
+
+// One row per date in a request. userId is denormalised so the team calendar
+// and clash detection are a single indexed query.
+model LeaveDay {
+  id        String       @id @default(cuid())
+  requestId String
+  request   LeaveRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime     @db.Date
+  minutes   Int
+
+  @@unique([requestId, date])
+  @@index([userId, date])
+  @@index([date])
+}
+
+model BankHoliday {
+  id       String   @id @default(cuid())
+  date     DateTime @unique @db.Date
+  name     String
+  isActive Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Timesheets
+// ---------------------------------------------------------------------------
+
+model Project {
+  id         String  @id @default(cuid())
+  code       String  @unique
+  name       String
+  client     String?
+  isActive   Boolean @default(true)
+  isBillable Boolean @default(true)
+
+  tasks Task[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Task {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  code      String?
+  name      String
+  isActive  Boolean @default(true)
+
+  entries TimeEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, name])
+  @@index([projectId])
+}
+
+model Timesheet {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation("TimesheetOwner", fields: [userId], references: [id], onDelete: Cascade)
+  weekStart       DateTime        @db.Date
+  status          TimesheetStatus @default(OPEN)
+  submittedAt     DateTime?
+  approverId      String?
+  decidedById     String?
+  decidedBy       User?           @relation("TimesheetDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  decidedAt       DateTime?
+  decisionComment String?
+  decidedOnBehalfOfId String?
+  // Why the week does not match contracted hours. Requested at submission,
+  // never enforced.
+  varianceReason  String?
+
+  entries TimeEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, weekStart])
+  @@index([status, weekStart])
+  @@index([approverId, status])
+}
+
+model TimeEntry {
+  id          String    @id @default(cuid())
+  timesheetId String
+  timesheet   Timesheet @relation(fields: [timesheetId], references: [id], onDelete: Cascade)
+  taskId      String
+  task        Task      @relation(fields: [taskId], references: [id])
+  date        DateTime  @db.Date
+  minutes     Int
+  note        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([timesheetId, taskId, date])
+  @@index([taskId, date])
+  @@index([date])
+}
+
+// ---------------------------------------------------------------------------
+// Settings (single row, id = 1)
+// ---------------------------------------------------------------------------
+
+model Settings {
+  id                     Int      @id @default(1)
+  companyName            String   @default("Mechtech Automation")
+  logoPath               String   @default("/logo.svg")
+  leaveYearStartDay      Int      @default(1)
+  leaveYearStartMonth    Int      @default(1)
+  defaultAllowanceMinutes Int     @default(10500)
+  carryoverCapMinutes    Int      @default(2250)
+  carryoverExpiryDay     Int      @default(31)
+  carryoverExpiryMonth   Int      @default(3)
+  timesheetRemindersOn   Boolean  @default(true)
+  managerDigestOn        Boolean  @default(true)
+
+  updatedAt DateTime @updatedAt
+}
