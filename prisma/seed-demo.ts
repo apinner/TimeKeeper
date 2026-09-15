@@ -75,10 +75,10 @@ function startOfWeek(value: string): string {
 }
 
 async function main() {
-  const realPeople = await prisma.user.count({ where: { entraObjectId: { not: null } } });
+  const realPeople = await prisma.user.count({ where: { directoryId: { not: null } } });
   if (realPeople > 0) {
     console.error(
-      `Refusing to run: this database has ${realPeople} account(s) created by real sign-ins.`,
+      `Refusing to run: this database has ${realPeople} account(s) created from the directory.`,
     );
     process.exit(1);
   }

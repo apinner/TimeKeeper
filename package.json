@@ -21,6 +21,7 @@
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "7.10.0",
     "dotenv": "^17.4.2",
+    "ldapts": "^9.0.0",
     "next": "15.5.25",
     "next-auth": "5.0.0-beta.32",
     "nodemailer": "^8.0.5",

@@ -34,18 +34,19 @@ enum TimesheetStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Identity. Users are provisioned just-in-time on first Entra ID sign-in, so
-// this table doubles as the Auth.js user table.
+// Identity. People sign in against Active Directory; accounts are created on
+// first sign-in and their details are refreshed from the directory.
 // ---------------------------------------------------------------------------
 
 model User {
   id             String    @id @default(cuid())
-  entraObjectId  String?   @unique
+  // objectGUID from the directory, base64 encoded. Survives a rename.
+  directoryId    String?   @unique
+  // Distinguished name, used to resolve the manager attribute to a person.
+  directoryDn    String?
   upn            String    @unique
   email          String    @unique
   name           String?
-  emailVerified  DateTime?
-  image          String?
   jobTitle       String?
   department     String?
   role           Role      @default(EMPLOYEE)
@@ -56,9 +57,6 @@ model User {
   managerId String?
   manager   User?   @relation("LineManagement", fields: [managerId], references: [id], onDelete: SetNull)
   reports   User[]  @relation("LineManagement")
-
-  accounts Account[]
-  sessions Session[]
 
   workingPattern      WorkingPattern?
   entitlements        Entitlement[]
@@ -77,39 +75,6 @@ model User {
 
   @@index([managerId])
   @@index([isActive])
-}
-
-model Account {
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([provider, providerAccountId])
-}
-
-model Session {
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model VerificationToken {
-  identifier String
-  token      String
-  expires    DateTime
-
-  @@id([identifier, token])
 }
 
 // ---------------------------------------------------------------------------

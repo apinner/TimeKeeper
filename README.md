@@ -1,10 +1,10 @@
 # TimeKeeper
 
-Timesheets and holiday requests for a small business, with Microsoft 365 single
-sign-on, PostgreSQL storage and Docker deployment.
+Timesheets and holiday requests for a small business, with Active Directory
+sign-in, PostgreSQL storage and Docker deployment.
 
-Built to the decisions recorded in [docs/DESIGN.md](docs/DESIGN.md). Setting up
-the Microsoft side is covered in [docs/SETUP.md](docs/SETUP.md).
+Built to the decisions recorded in [docs/DESIGN.md](docs/DESIGN.md). Preparing
+Active Directory is covered in [docs/SETUP.md](docs/SETUP.md).
 
 ---
 
@@ -47,8 +47,9 @@ in place or set `APP_BIND=0.0.0.0`. Migrations and reference-data seeding run
 automatically on start.
 
 The first person named in `BOOTSTRAP_ADMIN_UPN` becomes a sysadmin when they
-first sign in. Everyone else is created as an employee on their own first
-sign-in, and an administrator sets their line manager.
+first sign in. Everyone else is created from Active Directory — either on their
+own first sign-in, or by the nightly sync — with their line manager taken from
+the directory's `manager` attribute.
 
 ### Locally, for development
 
@@ -77,7 +78,11 @@ Everything is environment variables; see `.env.example` for the full list.
 | `DATABASE_URL` | PostgreSQL connection string |
 | `AUTH_SECRET` | Session signing key — `openssl rand -base64 32` |
 | `AUTH_URL` | Public HTTPS address of the app |
-| `AUTH_MICROSOFT_ENTRA_ID_ID` / `_SECRET` / `_TENANT_ID` | From the app registration |
+| `LDAP_URL` | e.g. `ldap://dc01.example.local:389`, or `ldaps://…:636` to encrypt |
+| `LDAP_BASE_DN` | Where to search, e.g. `DC=example,DC=local` |
+| `LDAP_UPN_SUFFIX` | Appended when someone types a bare username |
+| `LDAP_ACCESS_GROUP_DN` | Only members of this group may sign in |
+| `LDAP_BIND_DN` / `LDAP_BIND_PASSWORD` | Read-only service account, for the nightly sync |
 | `BOOTSTRAP_ADMIN_UPN` | The first administrator |
 | `SMTP_*` | Mail relay. Leave `SMTP_HOST` empty and mail is written to the log |
 | `APP_BIND` | Interface the port is published on. `127.0.0.1` (default) or `0.0.0.0` |
@@ -107,6 +112,7 @@ acts:
 | When | Job |
 |---|---|
 | Friday 16:00 | Reminder to anyone whose week is unsubmitted |
+| Daily 02:00 | Active Directory sync: details, line managers, leavers |
 | Monday 09:00 | Digest to approvers with items waiting |
 | Daily 01:00 | Year-end roll forward (no-ops unless it is the first day of the leave year) |
 

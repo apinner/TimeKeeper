@@ -36,15 +36,15 @@ jobs:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
           AUTH_SECRET: build-only-secret-not-used-at-runtime
 
-      - name: Check the migration matches the schema
+      - name: Check the migrations match the schema
         run: |
           npx prisma migrate diff \
             --from-migrations prisma/migrations \
             --to-schema prisma/schema.prisma \
-            --shadow-database-url postgresql://ci:ci@localhost:5432/shadow \
             --exit-code && echo "Schema and migrations agree"
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+          SHADOW_DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
 
     services:
       postgres:

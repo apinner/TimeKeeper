@@ -6,10 +6,9 @@
 # APP_BIND controls which interface the port is published on:
 #   127.0.0.1  (default) reachable only from the server itself, for a reverse
 #              proxy running on that same host
-#   0.0.0.0    reachable from anywhere on your network — convenient for a first
-#              look, but see the note on AUTH_URL in .env.example: Microsoft
-#              Entra ID will not accept a plain http:// redirect URI for
-#              anything other than localhost, so single sign-on needs HTTPS.
+#   0.0.0.0    reachable from anywhere on your network
+#
+# AUTH_URL must match the address people actually type.
 
 services:
   app:
@@ -24,9 +23,16 @@ services:
       AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
       AUTH_URL: ${AUTH_URL:?set AUTH_URL in .env}
       AUTH_TRUST_HOST: "true"
-      AUTH_MICROSOFT_ENTRA_ID_ID: ${AUTH_MICROSOFT_ENTRA_ID_ID}
-      AUTH_MICROSOFT_ENTRA_ID_SECRET: ${AUTH_MICROSOFT_ENTRA_ID_SECRET}
-      AUTH_MICROSOFT_ENTRA_ID_TENANT_ID: ${AUTH_MICROSOFT_ENTRA_ID_TENANT_ID}
+      LDAP_URL: ${LDAP_URL:?set LDAP_URL in .env}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:?set LDAP_BASE_DN in .env}
+      LDAP_UPN_SUFFIX: ${LDAP_UPN_SUFFIX}
+      LDAP_ACCESS_GROUP_DN: ${LDAP_ACCESS_GROUP_DN}
+      LDAP_BIND_DN: ${LDAP_BIND_DN}
+      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD}
+      LDAP_STARTTLS: ${LDAP_STARTTLS:-false}
+      LDAP_TLS_REJECT_UNAUTHORIZED: ${LDAP_TLS_REJECT_UNAUTHORIZED:-true}
+      LDAP_NESTED_GROUPS: ${LDAP_NESTED_GROUPS:-true}
+      LDAP_TIMEOUT_MS: ${LDAP_TIMEOUT_MS:-10000}
       BOOTSTRAP_ADMIN_UPN: ${BOOTSTRAP_ADMIN_UPN}
       APP_URL: ${APP_URL:-${AUTH_URL}}
       SMTP_HOST: ${SMTP_HOST}

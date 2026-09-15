@@ -1,7 +1,7 @@
 # TimeKeeper — Design & Decisions
 
 A web-based timesheet and holiday request system for a ~50-person business,
-with Microsoft 365 single sign-on, PostgreSQL storage and Docker deployment.
+with Active Directory sign-in, PostgreSQL storage and Docker deployment.
 
 This document records every decision agreed during design, the reasoning behind
 it, and the consequences that follow. It is the specification the build works to.
@@ -19,8 +19,8 @@ Status: **awaiting sign-off**. No application code has been written yet.
 | 1 | Stack | Next.js (App Router) + TypeScript + Prisma + PostgreSQL | One language across UI and API; SSO is configuration rather than hand-written OIDC; versioned migrations |
 | 2 | Hosting | Existing on-prem Docker host | Compose file stays portable, assumes nothing about a reverse proxy; TLS terminated by your infrastructure |
 | 3 | Database | PostgreSQL inside the Compose stack, named volume | Self-contained; you own patching and backups. A `pg_dump` script is provided |
-| 4 | Provisioning | Just-in-time on first SSO login, no Microsoft Graph | No Graph permissions to consent to. **Line managers must be assigned in-app** |
-| 5 | Sign-in policy | Single tenant, tenant ID verified on every token, assignment to the enterprise app required | IT controls access via an Entra group; disabling an account revokes access immediately |
+| 4 | Provisioning | From Active Directory, on first sign-in and by a nightly sync | Names, email, department, job title and **line manager** come from AD, so the org chart maintains itself |
+| 5 | Sign-in policy | LDAP bind as the user; membership of an access group required | IT controls access via an AD group. Supersedes the original Entra ID decision — see §7 |
 | 6 | Roles | In-app: Employee, Manager, HR/Admin, Sysadmin. First admin bootstrapped from `BOOTSTRAP_ADMIN_UPN` | HR changes roles without an IT ticket. Manager rights also follow implicitly from having direct reports |
 | 7 | Locale | Europe/London, weeks start Monday, dd/mm/yyyy, decimal hours, English (UK) | Dates stored as plain calendar dates, so a booked Tuesday stays Tuesday across BST transitions |
 
@@ -173,3 +173,31 @@ registration, redirect URI, client secret, and requiring user assignment.
   remain until tidied.
 - No audit log (#29) means "who changed this allowance in March" cannot be answered
   beyond the adjustment rows themselves.
+
+
+---
+
+## 7. Change of identity provider
+
+The system was first built against Microsoft 365 single sign-on, as recorded in
+decisions 4 and 5 above. It was later changed to authenticate against Active
+Directory over LDAP.
+
+**What changed.** Auth.js now uses a credentials provider that binds to the
+directory as the person signing in. Sessions moved from database rows to signed
+cookies, because a credentials provider cannot use database sessions. The
+Auth.js adapter tables were dropped, and `entraObjectId` became `directoryId`.
+
+**What that costs.** Multi-factor authentication and conditional access are
+gone: sign-in is a password and nothing else, and the app now handles staff
+passwords rather than never seeing them. A single session can no longer be
+revoked remotely — though deactivating someone still locks them out at once,
+because every request re-reads their row and checks `isActive`.
+
+**What it gains.** AD's `manager` attribute populates line managers
+automatically, which removes the "assign 50 line managers by hand" problem that
+just-in-time provisioning created.
+
+**Transport.** Configured as `ldap://` on port 389 at the owner's direction. A
+simple bind on that port sends passwords in clear text; moving to `ldaps://` or
+`LDAP_STARTTLS=true` is a change of environment variable, not of code.

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { runYearEndRollover, sendManagerDigests, sendTimesheetReminders } from "@/lib/jobs";
+import { syncDirectory } from "@/lib/ldap/sync";
 
 /**
  * In-process scheduler. At 50 people this is the right size of solution: no
@@ -34,6 +35,13 @@ const JOBS: Job[] = [
     hour: 9,
     minute: 0,
     run: sendManagerDigests,
+  },
+  {
+    name: "directory-sync",
+    dayOfWeek: null,
+    hour: 2,
+    minute: 0,
+    run: async () => (await syncDirectory()).updated,
   },
   {
     name: "year-end-rollover",
