@@ -1,0 +1,10 @@
+<!--
+  Placeholder wordmark in the brand colours. Replace this file with the real
+  Mechtech Automation logo (same filename, or change logoPath in Settings).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 64" width="320" height="64" role="img" aria-label="Mechtech Automation">
+  <text x="0" y="34" font-family="ui-sans-serif, system-ui, 'Segoe UI', Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="-1">
+    <tspan fill="#f08120">Mech</tspan><tspan fill="#53565a">tech</tspan>
+  </text>
+  <text x="2" y="54" font-family="ui-sans-serif, system-ui, 'Segoe UI', Arial, sans-serif" font-size="13" font-weight="400" letter-spacing="6" fill="#53565a">AUTOMATION</text>
+</svg>
