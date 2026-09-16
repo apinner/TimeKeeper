@@ -58,42 +58,37 @@ domain controller uses a certificate from an internal CA that the container does
 not trust, set `LDAP_TLS_REJECT_UNAUTHORIZED=false` — which encrypts the traffic
 but stops verifying who is on the other end.
 
-## 2. Fill in the environment file
+## 2. There is nothing to configure first
 
-Only infrastructure lives here now. Everything about the directory, email and
-company policy is configured inside the application.
+TimeKeeper starts with working defaults and no configuration file. The stack
+generates its own session secret on first start, applies migrations, seeds
+reference data, and then asks you to create an administrator account in the
+browser. Everything else — the directory, email, leave policy — is set inside
+the application.
 
-```bash
-cp .env.example .env
-```
+These can be overridden if you want to, by exporting them or putting them in a
+`.env` file next to `docker-compose.yml`, but none of them is required:
 
-Generate a session key:
+| Variable | Default | When you would set it |
+|---|---|---|
+| `APP_BIND` | `127.0.0.1` | `0.0.0.0` to reach it directly from the network |
+| `APP_PORT` | `3000` | Another port is already using 3000 |
+| `POSTGRES_PASSWORD` | `timekeeper` | You would rather the bundled database had your own password. Set it **before the first start** — changing it later does not change the password Postgres already initialised with |
+| `AUTH_SECRET` | generated | You want to manage the secret yourself, for example from a secrets store |
+| `AUTH_URL` | taken from the request | To pin the address used in email links |
+| `ENABLE_SCHEDULER` | `true` | `false` on a replica that should not run scheduled jobs |
+| `TZ` | `Europe/London` | A different timezone |
 
-```bash
-openssl rand -base64 32
-```
+### About the session secret
 
-Then set:
+It signs sessions **and** encrypts the directory and mail passwords held in the
+database, which is why it cannot ship with a fixed value — a known secret would
+let anyone forge a session, and would make the encryption pointless.
 
-```ini
-POSTGRES_PASSWORD=<a long random password>
-DATABASE_URL=postgresql://timekeeper:<same password>@postgres:5432/timekeeper?schema=public
-
-AUTH_SECRET=<the generated key>
-AUTH_URL=https://timekeeper.example.com
-AUTH_TRUST_HOST=true
-```
-
-`AUTH_SECRET` does double duty: it signs sessions **and** encrypts the directory
-and mail passwords stored in the database. Changing it signs everyone out and
-makes those stored passwords unreadable, so they have to be re-entered in Admin.
-Keep it somewhere you can find it again.
-
-### Upgrading from a version that used LDAP_* and SMTP_* variables
-
-Leave them in `.env` for one start. They are copied into the database
-automatically, the log says so, and they can then be deleted. Settings already
-in the database are never overwritten.
+When not supplied, it is generated on first start and kept in the
+`timekeeper-secret` Docker volume. **Back that volume up along with the
+database.** Losing it signs everyone out and makes the stored directory and mail
+passwords unreadable; they would have to be entered again in Admin.
 
 ## 3. Start it
 
@@ -102,8 +97,10 @@ docker compose up -d --build
 docker compose logs -f app
 ```
 
-On first start the app applies migrations and seeds leave types, England &
-Wales bank holidays and default settings.
+On first start the app generates a session secret, applies migrations, and seeds
+leave types, England & Wales bank holidays and default settings. The log ends
+with a note that nobody can sign in yet and to open it in a browser — that is
+expected, and step 4 is what you do next.
 
 ### "The site cannot be reached" on `serverip:3000`
 

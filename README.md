@@ -37,19 +37,23 @@ outstanding balances — on screen and as CSV.
 ### With Docker (how it is deployed)
 
 ```bash
-cp .env.example .env     # then fill it in — see below
 docker compose up -d --build
 ```
 
+That is the whole installation. There is no configuration file to write: the
+stack starts with working defaults, generates its own session secret, applies
+migrations and seeds reference data. Open it in a browser and it asks you to
+create an administrator account.
+
 The app publishes on `127.0.0.1:3000` for your own reverse proxy to sit in front
 of, so it is not reachable from other machines until you either put that proxy
-in place or set `APP_BIND=0.0.0.0`. Migrations and reference-data seeding run
-automatically on start.
+in place or start it with `APP_BIND=0.0.0.0`.
 
 On a fresh install, opening TimeKeeper offers a one-time page to create the
 administrator account, with a password held by TimeKeeper. Sign in with it and
-connect Active Directory under Admin → Authentication; the setup page closes as
-soon as that account exists.
+connect Active Directory under Admin → Authentication, using **Test connection**
+to prove the settings before saving them. The setup page closes as soon as that
+account exists.
 
 Everyone else is created from Active Directory — either on their own first
 sign-in, or by the nightly sync — with their line manager taken from the
@@ -67,12 +71,19 @@ directory sign-in.
 npm install
 docker run -d --name tk-db -e POSTGRES_PASSWORD=timekeeper \
   -e POSTGRES_USER=timekeeper -e POSTGRES_DB=timekeeper -p 5432:5432 postgres:17-alpine
-cp .env.example .env
+
+cat > .env <<'ENV'
+DATABASE_URL="postgresql://timekeeper:timekeeper@localhost:5432/timekeeper?schema=public"
+AUTH_SECRET="development-only-secret-not-for-production"
+ENV
+
 npx prisma migrate deploy
 npm run seed          # leave types, bank holidays, settings
 npm run seed:demo     # optional: ~50 fictional staff with a term of history
 npm run dev
 ```
+
+Only development needs that file — the Docker stack supplies both values itself.
 
 `seed:demo` refuses to run against a database containing accounts created by
 real sign-ins.
@@ -81,20 +92,27 @@ real sign-ins.
 
 ## Configuration
 
-Almost everything is configured in the application, under Admin. The environment
-holds only what has to exist before the app can start:
+Everything is configured in the application, under Admin. Nothing has to be set
+before it will run.
 
-| Variable | Purpose |
-|---|---|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `AUTH_SECRET` | Signs sessions **and** encrypts stored directory and mail passwords |
-| `AUTH_URL` | Public address of the app |
-| `AUTH_TRUST_HOST` | `true` behind your own reverse proxy |
-| `APP_BIND` / `APP_PORT` | Interface and port to publish on. `127.0.0.1` by default |
-| `ENABLE_SCHEDULER` | Set `false` on any replica that should not run scheduled jobs |
-| `TZ` | `Europe/London` |
+These can be overridden if you want to — in the environment, or a `.env` file
+next to the compose file — but all of them have working defaults:
 
-Configured in the app instead:
+| Variable | Default | Purpose |
+|---|---|---|
+| `APP_BIND` / `APP_PORT` | `127.0.0.1` / `3000` | Interface and port to publish on |
+| `POSTGRES_PASSWORD` | `timekeeper` | The bundled database is not published outside the compose network |
+| `AUTH_SECRET` | generated on first start | Signs sessions **and** encrypts stored directory and mail passwords |
+| `AUTH_URL` | taken from the request | Only needed to pin the address used in email links |
+| `ENABLE_SCHEDULER` | `true` | Set `false` on any replica that should not run scheduled jobs |
+| `TZ` | `Europe/London` | |
+
+The generated session secret is kept in the `timekeeper-secret` volume and
+reused on every restart. **Back that volume up along with the database**: losing
+it signs everyone out and makes the stored directory and mail passwords
+unreadable, so they would have to be entered again in Admin.
+
+Configured in the app:
 
 | Where | What |
 |---|---|
@@ -103,11 +121,9 @@ Configured in the app instead:
 | Admin → Company settings | Leave year, allowances, carryover, scheduled job times, session length |
 
 Directory and mail passwords are encrypted with AES-256-GCM using a key derived
-from `AUTH_SECRET`, so a database dump does not hand over working credentials.
-Administrator passwords are hashed with scrypt and are never recoverable.
-
-> Changing `AUTH_SECRET` signs everyone out and makes the stored directory and
-> mail passwords unreadable — they must be entered again in Admin.
+from the session secret, so a database dump does not hand over working
+credentials. Administrator passwords are hashed with scrypt and are never
+recoverable.
 
 ### Branding
 
@@ -141,6 +157,8 @@ acts:
 ## Backups
 
 `scripts/backup.sh` writes a compressed dump into `./backups` and keeps 30 days.
+Back up the `timekeeper-secret` volume too — without it, a restored database
+cannot decrypt its own stored passwords.
 Add it to the host's crontab:
 
 ```

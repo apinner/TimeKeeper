@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { checkPasswordStrength, hashPassword } from "@/lib/crypto";
@@ -56,7 +57,28 @@ export async function createFirstAdministrator(form: FormData): Promise<void> {
       });
 
   await ensureUserSetUp(user.id);
+  await rememberAddress();
 
   console.info(`[setup] first administrator created: ${username}`);
   redirect("/signin?setup=complete");
+}
+
+/**
+ * Record the address this was opened at, so links in email point somewhere
+ * useful without anyone having to configure it. It can be changed later in
+ * Admin → Email.
+ */
+async function rememberAddress(): Promise<void> {
+  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
+  if (settings?.appUrl) return;
+
+  const incoming = await headers();
+  const host = incoming.get("x-forwarded-host") ?? incoming.get("host");
+  if (!host) return;
+
+  const protocol = incoming.get("x-forwarded-proto") ?? "http";
+  await prisma.settings.update({
+    where: { id: 1 },
+    data: { appUrl: `${protocol}://${host}` },
+  });
 }

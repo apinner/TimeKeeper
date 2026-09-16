@@ -5,7 +5,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import "dotenv/config";
-import { encryptSecret } from "../src/lib/crypto";
 
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
@@ -98,69 +97,9 @@ const BANK_HOLIDAYS: [string, string][] = [
 
 const asDate = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
-/**
- * Directory and mail settings used to live in the environment. On the first
- * start after upgrading, anything still set there is copied into the database
- * once, so an existing deployment keeps working and the variables can then be
- * deleted. Settings already in the database are never overwritten.
- */
-async function importLegacyEnvironment() {
-  const settings = await prisma.settings.findUnique({ where: { id: 1 } });
-  if (!settings) return;
-
-  const imported: string[] = [];
-  const data: Record<string, unknown> = {};
-
-  if (!settings.ldapUrl && process.env.LDAP_URL) {
-    Object.assign(data, {
-      ldapEnabled: true,
-      ldapUrl: process.env.LDAP_URL,
-      ldapBaseDn: process.env.LDAP_BASE_DN ?? null,
-      ldapUpnSuffix: process.env.LDAP_UPN_SUFFIX ?? null,
-      ldapAccessGroupDn: process.env.LDAP_ACCESS_GROUP_DN ?? null,
-      ldapBindDn: process.env.LDAP_BIND_DN ?? null,
-      ldapBindPasswordEnc: process.env.LDAP_BIND_PASSWORD
-        ? encryptSecret(process.env.LDAP_BIND_PASSWORD)
-        : null,
-      ldapStartTls: process.env.LDAP_STARTTLS === "true",
-      ldapTlsRejectUnauthorized: process.env.LDAP_TLS_REJECT_UNAUTHORIZED !== "false",
-      ldapNestedGroups: process.env.LDAP_NESTED_GROUPS !== "false",
-      ldapBindMode: process.env.LDAP_BIND_MODE === "search" ? "search" : "upn",
-    });
-    if (process.env.LDAP_PERSON_FILTER) data.ldapPersonFilter = process.env.LDAP_PERSON_FILTER;
-    imported.push("directory");
-  }
-
-  if (!settings.smtpHost && process.env.SMTP_HOST) {
-    Object.assign(data, {
-      smtpHost: process.env.SMTP_HOST,
-      smtpPort: Number(process.env.SMTP_PORT ?? 587),
-      smtpSecure: process.env.SMTP_SECURE === "true",
-      smtpUser: process.env.SMTP_USER ?? null,
-      smtpPasswordEnc: process.env.SMTP_PASSWORD
-        ? encryptSecret(process.env.SMTP_PASSWORD)
-        : null,
-    });
-    if (process.env.SMTP_FROM) data.smtpFrom = process.env.SMTP_FROM;
-    imported.push("email");
-  }
-
-  if (!settings.appUrl && process.env.APP_URL) {
-    data.appUrl = process.env.APP_URL;
-  }
-
-  if (Object.keys(data).length === 0) return;
-
-  await prisma.settings.update({ where: { id: 1 }, data });
-  console.log(
-    `Imported ${imported.join(" and ")} settings from the environment — these are now managed in Admin, and the variables can be removed`,
-  );
-}
-
 async function main() {
   await prisma.settings.upsert({ where: { id: 1 }, create: { id: 1 }, update: {} });
   console.log("Settings ready");
-  await importLegacyEnvironment();
 
   for (const type of LEAVE_TYPES) {
     await prisma.leaveType.upsert({

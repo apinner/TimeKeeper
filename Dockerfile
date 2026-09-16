@@ -59,6 +59,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# Holds the generated session secret. Docker takes this directory's ownership
+# when it initialises the empty volume, so the unprivileged user can write to it.
+RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+VOLUME ["/app/data"]
+
 USER nextjs
 EXPOSE 3000
 

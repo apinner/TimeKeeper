@@ -130,9 +130,9 @@ front of. Multi-stage Dockerfile using Next.js standalone output. Migrations run
 reminders, year-end carryover, carryover expiry) runs in-process on a cron
 schedule guarded by a database lock.
 
-Environment variables: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_URL`,
-`AUTH_TRUST_HOST`, `APP_BIND`, `APP_PORT`, `ENABLE_SCHEDULER`, `TZ`. Everything
-else is configured in the application — see §8.
+No configuration file is required. Every environment variable has a working
+default, the session secret is generated on first start and kept in a volume,
+and everything else is configured in the application — see §8.
 
 The setup guide covers preparing Active Directory and the first run.
 
@@ -235,6 +235,14 @@ backups, not the running application — anything holding `AUTH_SECRET` can
 decrypt. Administrator passwords are hashed with scrypt and are not recoverable
 at all.
 
-**Upgrade path.** On the first start after this change, any `LDAP_*` and
-`SMTP_*` variables still set are copied into the database once and the log says
-so. They can then be removed.
+**No configuration file.** `docker compose up -d` is the whole installation.
+The stack starts on defaults, generates its own session secret into the
+`timekeeper-secret` volume, and opening it in a browser offers the setup page.
+The secret cannot have a shipped default — a known value would let anyone forge
+a session and would defeat the encryption of stored passwords — so it is
+generated once and reused, and that volume belongs in the backup alongside the
+database.
+
+The address the administrator opens during setup is recorded as the base for
+email links, so those are right without anyone configuring them. It can be
+changed later in Admin → Email.

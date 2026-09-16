@@ -1,14 +1,18 @@
-# TimeKeeper — app and database.
+# TimeKeeper.
 #
-# No reverse proxy is included: TLS is terminated by your existing
-# infrastructure, which should forward to the published port below.
+#   docker compose up -d
+#
+# then open the app in a browser. There is nothing to configure first: it asks
+# you to create an administrator account, and everything else — Active
+# Directory, email, leave policy — is set up inside the application.
+#
+# No .env file is needed. Every value below has a working default; set any of
+# them in the environment, or in a .env file next to this one, to override.
 #
 # APP_BIND controls which interface the port is published on:
 #   127.0.0.1  (default) reachable only from the server itself, for a reverse
 #              proxy running on that same host
 #   0.0.0.0    reachable from anywhere on your network
-#
-# AUTH_URL must match the address people actually type.
 
 services:
   app:
@@ -19,42 +23,31 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-timekeeper}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-timekeeper}?schema=public
-      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
-      AUTH_URL: ${AUTH_URL:?set AUTH_URL in .env}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-timekeeper}:${POSTGRES_PASSWORD:-timekeeper}@postgres:5432/${POSTGRES_DB:-timekeeper}?schema=public
+      # Generated on first start and kept in the timekeeper-secret volume when
+      # not set here. See docker-entrypoint.sh.
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      # Not required: the sign-in URL is taken from the request. Setting it
+      # fixes the address used in email links, which can also be set in
+      # Admin → Email.
+      AUTH_URL: ${AUTH_URL:-}
       AUTH_TRUST_HOST: "true"
       ENABLE_SCHEDULER: ${ENABLE_SCHEDULER:-true}
-      # Directory and mail settings live in the database and are edited in
-      # Admin. These are only read once, to carry an older deployment's
-      # configuration over, and can be deleted from .env afterwards.
-      LDAP_URL: ${LDAP_URL:-}
-      LDAP_BASE_DN: ${LDAP_BASE_DN:-}
-      LDAP_UPN_SUFFIX: ${LDAP_UPN_SUFFIX:-}
-      LDAP_ACCESS_GROUP_DN: ${LDAP_ACCESS_GROUP_DN:-}
-      LDAP_BIND_DN: ${LDAP_BIND_DN:-}
-      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
-      LDAP_STARTTLS: ${LDAP_STARTTLS:-}
-      LDAP_TLS_REJECT_UNAUTHORIZED: ${LDAP_TLS_REJECT_UNAUTHORIZED:-}
-      LDAP_NESTED_GROUPS: ${LDAP_NESTED_GROUPS:-}
-      LDAP_BIND_MODE: ${LDAP_BIND_MODE:-}
-      LDAP_PERSON_FILTER: ${LDAP_PERSON_FILTER:-}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-}
-      SMTP_SECURE: ${SMTP_SECURE:-}
-      SMTP_USER: ${SMTP_USER:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_FROM: ${SMTP_FROM:-}
-      APP_URL: ${APP_URL:-}
       TZ: ${TZ:-Europe/London}
+    volumes:
+      - timekeeper-secret:/app/data
     ports:
       - "${APP_BIND:-127.0.0.1}:${APP_PORT:-3000}:3000"
 
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
+    # Deliberately not published: the database is reachable only from the app
+    # container, which is why a default password is acceptable here. Set
+    # POSTGRES_PASSWORD before the first start if you would rather it were not.
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-timekeeper}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-timekeeper}
       POSTGRES_DB: ${POSTGRES_DB:-timekeeper}
       TZ: ${TZ:-Europe/London}
     volumes:
@@ -68,3 +61,4 @@ services:
 
 volumes:
   timekeeper-data:
+  timekeeper-secret:
